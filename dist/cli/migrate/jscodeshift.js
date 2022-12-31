@@ -1,5 +1,5 @@
 /**
- * @remix-run/dev v1.7.2
+ * @remix-run/dev v1.9.0
  *
  * Copyright (c) Remix Software Inc.
  *
@@ -34,7 +34,7 @@ const run = async ({
     // without this, `jscodeshift` will not be able to parse TS transforms
     dry,
     extensions: "tsx,ts,jsx,js",
-    failOnError: true,
+    failOnError: false,
     ignorePattern: ["**/node_modules/**", "**/.cache/**", "**/build/**"],
     parser: "tsx",
     print,

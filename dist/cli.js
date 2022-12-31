@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * @remix-run/dev v1.7.2
+ * @remix-run/dev v1.9.0
  *
  * Copyright (c) Remix Software Inc.
  *
@@ -16,6 +16,8 @@ var index = require('./index');
 index.cli.run().then(() => {
   process.exit(0);
 }, error => {
-  console.error(error);
+  // for expected errors we only show the message (if any), no stack trace
+  if (error instanceof index.CliError) error = error.message;
+  if (error) console.error(error);
   process.exit(1);
 });

@@ -1,5 +1,5 @@
 /**
- * @remix-run/dev v1.7.2
+ * @remix-run/dev v1.9.0
  *
  * Copyright (c) Remix Software Inc.
  *
@@ -59,7 +59,6 @@ let requiredCompilerOptions = {
   esModuleInterop: true,
   isolatedModules: true,
   jsx: "react-jsx",
-  moduleResolution: "node",
   noEmit: true,
   resolveJsonModule: true
 }; // taken from https://github.com/sindresorhus/ts-extras/blob/781044f0412ec4a4224a1b9abce5ff0eacee3e72/source/object-keys.ts
@@ -123,6 +122,17 @@ function writeConfigDefaults(configPath) {
       config.compilerOptions[key] = requiredCompilerOptions[key];
       requiredChanges.push(colors.blue("compilerOptions." + key) + " was set to " + colors.bold(`'${requiredCompilerOptions[key]}'`));
     }
+  }
+
+  if (typeof fullConfig.compilerOptions.moduleResolution === "undefined") {
+    fullConfig.compilerOptions.moduleResolution = "node";
+    config.compilerOptions.moduleResolution = "node";
+    requiredChanges.push(colors.blue("compilerOptions.moduleResolution") + " was set to " + colors.bold(`'node'`));
+  }
+
+  if (!["node", "node16", "nodenext"].includes(fullConfig.compilerOptions.moduleResolution.toLowerCase())) {
+    config.compilerOptions.moduleResolution = "node";
+    requiredChanges.push(colors.blue("compilerOptions.moduleResolution") + " was set to " + colors.bold(`'node'`));
   }
 
   if (suggestedChanges.length > 0 || requiredChanges.length > 0) {

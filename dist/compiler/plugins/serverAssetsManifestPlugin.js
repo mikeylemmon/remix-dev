@@ -1,5 +1,5 @@
 /**
- * @remix-run/dev v1.7.2
+ * @remix-run/dev v1.9.0
  *
  * Copyright (c) Remix Software Inc.
  *
@@ -13,7 +13,6 @@
 Object.defineProperty(exports, '__esModule', { value: true });
 
 var jsesc = require('jsesc');
-var invariant = require('../../invariant.js');
 var virtualModules = require('../virtualModules.js');
 
 function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e : { 'default': e }; }
@@ -25,7 +24,8 @@ var jsesc__default = /*#__PURE__*/_interopDefaultLegacy(jsesc);
  * the assets manifest. This is used in the server entry module to access the
  * assets manifest in the server build.
  */
-function serverAssetsManifestPlugin(assetsManifestPromiseRef) {
+
+function serverAssetsManifestPlugin(assetsManifestPromise) {
   let filter = virtualModules.assetsManifestVirtualModule.filter;
   return {
     name: "server-assets-manifest",
@@ -44,10 +44,9 @@ function serverAssetsManifestPlugin(assetsManifestPromiseRef) {
       build.onLoad({
         filter
       }, async () => {
-        invariant["default"](assetsManifestPromiseRef.current, "Missing assets manifests in server build.");
-        let manifest = await assetsManifestPromiseRef.current;
+        let assetsManifest = await assetsManifestPromise;
         return {
-          contents: `export default ${jsesc__default["default"](manifest, {
+          contents: `export default ${jsesc__default["default"](assetsManifest, {
             es6: true
           })};`,
           loader: "js"

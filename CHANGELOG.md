@@ -1,5 +1,92 @@
 # `@remix-run/dev`
 
+## 1.9.0
+
+### Minor Changes
+
+- Allow defining multiple routes for the same route module file ([#3970](https://github.com/remix-run/remix/pull/3970))
+- Added support and conventions for optional route segments ([#4706](https://github.com/remix-run/remix/pull/4706))
+
+### Patch Changes
+
+- The Remix compiler now supports new Typescript 4.9 syntax (like the `satisfies` keyword) ([#4754](https://github.com/remix-run/remix/pull/4754))
+- Optimize `parentRouteId` lookup in `defineConventionalRoutes`. ([#4800](https://github.com/remix-run/remix/pull/4800))
+- Fixed a bug in `.ts` -> `.js` conversion on Windows by using a relative unix-style path ([#4718](https://github.com/remix-run/remix/pull/4718))
+- Updated dependencies:
+  - `@remix-run/server-runtime@1.9.0`
+
+## 1.8.2
+
+### Patch Changes
+
+- Updated dependencies:
+  - `@remix-run/server-runtime@1.8.2`
+  - `@remix-run/serve@1.8.2`
+
+## 1.8.1
+
+### Patch Changes
+
+- Added a missing type definition for the Remix config `future` option to the `@remix-run/dev/server-build` virtual module ([#4771](https://github.com/remix-run/remix/pull/4771))
+- Updated dependencies:
+  - `@remix-run/serve@1.8.1`
+  - `@remix-run/server-runtime@1.8.1`
+
+## 1.8.0
+
+### Minor Changes
+
+- Added support for a new route `meta` API to handle arrays of tags instead of an object. For details, check out the [RFC](https://github.com/remix-run/remix/discussions/4462). ([#4610](https://github.com/remix-run/remix/pull/4610))
+
+### Patch Changes
+
+- Importing functions and types from the `remix` package is deprecated, and all exported modules will be removed in the next major release. For more details,[see the release notes for 1.4.0](https://github.com/remix-run/remix/releases/tag/v1.4.0) where these changes were first announced. ([#4661](https://github.com/remix-run/remix/pull/4661))
+- Updated dependencies:
+  - `@remix-run/server-runtime@1.8.0`
+  - `@remix-run/serve@1.8.0`
+
+## 1.7.6
+
+### Patch Changes
+
+- Updated dependencies:
+  - `@remix-run/serve@1.7.6`
+  - `@remix-run/server-runtime@1.7.6`
+
+### Patch Changes
+
+- Updated dependencies:
+  - `@remix-run/serve@1.7.6-pre.0`
+  - `@remix-run/server-runtime@1.7.6-pre.0`
+
+## 1.7.5
+
+### Patch Changes
+
+- Updated dependencies:
+  - `@remix-run/serve@1.7.5`
+  - `@remix-run/server-runtime@1.7.5`
+
+## 1.7.4
+
+### Patch Changes
+
+- Updated dependencies:
+  - `@remix-run/server-runtime@1.7.4`
+  - `@remix-run/serve@1.7.4`
+
+## 1.7.3
+
+### Patch Changes
+
+- Update `create-remix` to use the new examples repository when using `--template example/<name>` ([#4208](https://github.com/remix-run/remix/pull/4208))
+- Add support for setting `moduleResolution` to `node`, `node16` or `nodenext` in `tsconfig.json`. ([#4034](https://github.com/remix-run/remix/pull/4034))
+- Add resources imported only by resource routes to `assetsBuildDirectory` ([#3841](https://github.com/remix-run/remix/pull/3841))
+- Ensure that any assets referenced in CSS files are hashed and copied to the `assetsBuildDirectory`. ([#4130](https://github.com/remix-run/remix/pull/4130))
+- Updated dependencies:
+  - `@remix-run/serve@1.7.3`
+  - `@remix-run/server-runtime@1.7.3`
+
 ## 1.7.2
 
 ### Patch Changes

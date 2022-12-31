@@ -1,5 +1,5 @@
 /**
- * @remix-run/dev v1.7.2
+ * @remix-run/dev v1.9.0
  *
  * Copyright (c) Remix Software Inc.
  *
@@ -51,6 +51,8 @@ var getPort__default = /*#__PURE__*/_interopDefaultLegacy(getPort);
  * root directory.
  */
 async function readConfig(remixRoot, serverMode = serverModes.ServerMode.Production) {
+  var _appConfig$future;
+
   if (!remixRoot) {
     remixRoot = process.env.REMIX_ROOT || process.cwd();
   }
@@ -225,6 +227,9 @@ async function readConfig(remixRoot, serverMode = serverModes.ServerMode.Product
     writeConfigDefaults.writeConfigDefaults(tsconfigPath);
   }
 
+  let future = {
+    v2_meta: ((_appConfig$future = appConfig.future) === null || _appConfig$future === void 0 ? void 0 : _appConfig$future.v2_meta) === true
+  };
   let {
     resolveExtensions,
     resolveAliases
@@ -252,6 +257,7 @@ async function readConfig(remixRoot, serverMode = serverModes.ServerMode.Product
     mdx,
     watchPaths,
     tsconfigPath,
+    future,
     resolveExtensions,
     resolveAliases
   };

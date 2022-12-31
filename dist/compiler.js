@@ -336,7 +336,6 @@ async function createBrowserBuild(config, options) {
     tsconfig: config.tsconfigPath,
     mainFields: ["browser", "module", "main"],
     treeShaking: true,
-    minifySyntax: true,
     minify: options.mode === build$1.BuildMode.Production,
     entryNames: "[dir]/[name]-[hash]",
     chunkNames: "_shared/[name]-[hash]",

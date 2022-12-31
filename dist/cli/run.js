@@ -1,5 +1,5 @@
 /**
- * @remix-run/dev v1.7.2
+ * @remix-run/dev v1.9.0
  *
  * Copyright (c) Remix Software Inc.
  *
@@ -23,8 +23,6 @@ var colors = require('../colors.js');
 var commands = require('./commands.js');
 var create = require('./create.js');
 var getPreferredPackageManager = require('./getPreferredPackageManager.js');
-var resolveInput = require('./migrate/resolveInput.js');
-var run$1 = require('./migrate/run.js');
 
 function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e : { 'default': e }; }
 
@@ -65,7 +63,7 @@ ${colors.logoBlue("R")} ${colors.logoGreen("E")} ${colors.logoYellow("M")} ${col
     $ remix routes [${colors.arg("projectDir")}]
     $ remix watch [${colors.arg("projectDir")}]
     $ remix setup [${colors.arg("remixPlatform")}]
-    $ remix migrate [-m ${colors.arg("migration")}] [${colors.arg("projectDir")}]
+    $ remix codemod <${colors.arg("codemod")}> [${colors.arg("projectDir")}]
 
   ${colors.heading("Options")}:
     --help, -h          Print this help message and exit
@@ -85,17 +83,14 @@ ${colors.logoBlue("R")} ${colors.logoGreen("E")} ${colors.logoYellow("M")} ${col
     --no-delete         Skip deleting the \`remix.init\` script
   \`routes\` Options:
     --json              Print the routes as JSON
-  \`migrate\` Options:
-    --debug             Show debugging logs
+  \`codemod\` Options:
     --dry               Dry run (no changes are made to files)
-    --force             Bypass Git safety checks and forcibly run migration
-    --migration, -m     Name of the migration to run
+    --force             Bypass Git safety checks
 
   ${colors.heading("Values")}:
     - ${colors.arg("projectDir")}        The Remix project directory
     - ${colors.arg("template")}          The project template to use
     - ${colors.arg("remixPlatform")}     \`node\` or \`cloudflare\`
-    - ${colors.arg("migration")}         One of the choices from https://github.com/remix-run/remix/blob/main/packages/remix-dev/cli/migrate/migrations/index.ts
 
   ${colors.heading("Creating a new project")}:
 
@@ -218,8 +213,6 @@ async function run(argv = process.argv.slice(2)) {
     "--interactive": Boolean,
     "--no-interactive": Boolean,
     "--json": Boolean,
-    "--migration": String,
-    "-m": "--migration",
     "--port": Number,
     "-p": "--port",
     "--remix-version": String,
@@ -505,20 +498,9 @@ async function run(argv = process.argv.slice(2)) {
       await commands.setup(input[1]);
       break;
 
-    case "migrate":
+    case "codemod":
       {
-        let {
-          projectDir,
-          migrationId
-        } = await resolveInput.resolveInput({
-          migrationId: flags.migration,
-          projectId: input[1]
-        }, flags);
-        await run$1.run({
-          flags,
-          migrationId,
-          projectDir
-        });
+        await commands.codemod(input[1], input[2]);
         break;
       }
 

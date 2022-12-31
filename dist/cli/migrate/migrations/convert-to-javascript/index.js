@@ -1,5 +1,5 @@
 /**
- * @remix-run/dev v1.7.2
+ * @remix-run/dev v1.9.0
  *
  * Copyright (c) Remix Software Inc.
  *
@@ -19,23 +19,28 @@ var jscodeshift = require('../../jscodeshift.js');
 var cleanupPackageJson = require('./cleanupPackageJson.js');
 var convertTSConfigs = require('./convertTSConfigs.js');
 var index = require('./convertTSFilesToJS/index.js');
+var error = require('../../../error.js');
 
 function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e : { 'default': e }; }
 
+var path__default = /*#__PURE__*/_interopDefaultLegacy(path);
 var glob__default = /*#__PURE__*/_interopDefaultLegacy(glob);
 
-const TRANSFORM_PATH = path.join(__dirname, "transform");
+const TRANSFORM_PATH = path__default["default"].join(__dirname, "transform");
 const convertToJavaScript = async (projectDir, flags = {}) => {
   let config$1 = await config.readConfig(projectDir); // 1. Rename all tsconfig.json files to jsconfig.json
 
   convertTSConfigs.convertTSConfigs(config$1.rootDirectory); // 2. Remove @types/* & TypeScript dependencies + `typecheck` script from `package.json`
 
-  await cleanupPackageJson.cleanupPackageJson(config$1.rootDirectory); // 3. Run codemod
+  await cleanupPackageJson.cleanupPackageJson(config$1.rootDirectory); // 3. convert appDirectory to relative and force unix style path
+
+  let relativeAppDirectory = path__default["default"].relative(config$1.rootDirectory, config$1.appDirectory);
+  let unixAppDirectory = path__default["default"].posix.join(...relativeAppDirectory.split(path__default["default"].delimiter)); // 4. Run codemod
 
   let files = glob__default["default"].sync("**/*.+(ts|tsx)", {
     absolute: true,
     cwd: config$1.rootDirectory,
-    ignore: [`./${config$1.appDirectory}/**/*`, "**/node_modules/**"]
+    ignore: [`${unixAppDirectory}/**/*`, "**/node_modules/**"]
   });
   let codemodOk = await jscodeshift.run({
     files,
@@ -50,7 +55,7 @@ const convertToJavaScript = async (projectDir, flags = {}) => {
       console.log("👉 Try again with the `--debug` flag to see what failed.");
     }
 
-    process.exit(1);
+    throw new error.CliError();
   } // 4. Convert all .ts files to .js
 
 

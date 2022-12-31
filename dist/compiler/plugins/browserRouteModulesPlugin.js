@@ -1,5 +1,5 @@
 /**
- * @remix-run/dev v1.7.2
+ * @remix-run/dev v1.9.0
  *
  * Copyright (c) Remix Software Inc.
  *
@@ -12,7 +12,7 @@
 
 Object.defineProperty(exports, '__esModule', { value: true });
 
-var routes = require('../routes.js');
+var routeExports = require('../routeExports.js');
 var invariant = require('../../invariant.js');
 
 const browserSafeRouteExports = {
@@ -57,7 +57,7 @@ function browserRouteModulesPlugin(config, suffixMatcher) {
 
         try {
           invariant["default"](route, `Cannot get route by path: ${args.path}`);
-          theExports = (await routes.getRouteModuleExportsCached(config, route.id)).filter(ex => !!browserSafeRouteExports[ex]);
+          theExports = (await routeExports.getRouteModuleExports(config, route.id)).filter(ex => !!browserSafeRouteExports[ex]);
         } catch (error) {
           return {
             errors: [{

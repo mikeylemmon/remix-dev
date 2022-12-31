@@ -1,5 +1,5 @@
 /**
- * @remix-run/dev v1.7.2
+ * @remix-run/dev v1.9.0
  *
  * Copyright (c) Remix Software Inc.
  *
@@ -46,11 +46,14 @@ function serverEntryModulePlugin(config) {
           contents: `
 import * as entryServer from ${JSON.stringify(`./${config.entryServerFile}`)};
 ${Object.keys(config.routes).map((key, index) => {
+            // IMPORTANT: Any values exported from this generated module must also be
+            // typed in `packages/remix-dev/server-build.ts` to avoid tsc errors.
             let route = config.routes[key];
             return `import * as route${index} from ${JSON.stringify(`./${route.file}`)};`;
           }).join("\n")}
   export { default as assets } from ${JSON.stringify(virtualModules.assetsManifestVirtualModule.id)};
   export const assetsBuildDirectory = ${JSON.stringify(config.relativeAssetsBuildDirectory)};
+  export const future = ${JSON.stringify(config.future)};
   export const publicPath = ${JSON.stringify(config.publicPath)};
   export const entry = { module: entryServer };
   export const routes = {

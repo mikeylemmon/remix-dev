@@ -1,5 +1,5 @@
 /**
- * @remix-run/dev v1.7.2
+ * @remix-run/dev v1.9.0
  *
  * Copyright (c) Remix Software Inc.
  *
@@ -69,10 +69,15 @@ function defineRoutes(callback) {
       path: path ? path : undefined,
       index: options.index ? true : undefined,
       caseSensitive: options.caseSensitive ? true : undefined,
-      id: createRouteId(file),
+      id: options.id || createRouteId(file),
       parentId: parentRoutes.length > 0 ? parentRoutes[parentRoutes.length - 1].id : undefined,
       file
     };
+
+    if (route.id in routes) {
+      throw new Error(`Unable to define routes with duplicate route id: "${route.id}"`);
+    }
+
     routes[route.id] = route;
 
     if (children) {

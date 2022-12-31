@@ -1,5 +1,5 @@
 /**
- * @remix-run/dev v1.7.2
+ * @remix-run/dev v1.9.0
  *
  * Copyright (c) Remix Software Inc.
  *
@@ -21,6 +21,7 @@ var fse = require('fs-extra');
 var gunzip = require('gunzip-maybe');
 var fetch = require('node-fetch');
 var ora = require('ora');
+var ProxyAgent = require('proxy-agent');
 var semver = require('semver');
 var sortPackageJSON = require('sort-package-json');
 var tar = require('tar-fs');
@@ -56,12 +57,21 @@ var fse__default = /*#__PURE__*/_interopDefaultLegacy(fse);
 var gunzip__default = /*#__PURE__*/_interopDefaultLegacy(gunzip);
 var fetch__default = /*#__PURE__*/_interopDefaultLegacy(fetch);
 var ora__default = /*#__PURE__*/_interopDefaultLegacy(ora);
+var ProxyAgent__default = /*#__PURE__*/_interopDefaultLegacy(ProxyAgent);
 var semver__namespace = /*#__PURE__*/_interopNamespace(semver);
 var sortPackageJSON__default = /*#__PURE__*/_interopDefaultLegacy(sortPackageJSON);
 var tar__default = /*#__PURE__*/_interopDefaultLegacy(tar);
 var packageJson__default = /*#__PURE__*/_interopDefaultLegacy(packageJson);
 
 const remixDevPackageVersion = packageJson__default["default"].version;
+const defaultAgent = new ProxyAgent__default["default"]();
+const httpsAgent = new ProxyAgent__default["default"]();
+httpsAgent.protocol = "https:";
+
+function agent(url) {
+  return new URL(url).protocol === "https:" ? httpsAgent : defaultAgent;
+}
+
 async function createApp({
   appTemplate,
   projectDir,
@@ -135,10 +145,10 @@ async function createApp({
         let name = appTemplate.split("/").slice(-1)[0];
 
         if (debug) {
-          console.log(colors.warning(` 🔍  Using the ${name} example template from the remix-run/remix repo`));
+          console.log(colors.warning(` 🔍  Using the ${name} example template from the remix-run/examples repo`));
         }
 
-        await downloadAndExtractRepoTarball(projectDir, getRepoInfo(`https://github.com/remix-run/remix/tree/main/examples/${name}`), options);
+        await downloadAndExtractRepoTarball(projectDir, getRepoInfo(`https://github.com/remix-run/examples/tree/main/${name}`), options);
         break;
       }
 
@@ -182,7 +192,7 @@ async function createApp({
 
   try {
     appPkg = require(pkgJsonPath);
-  } catch (err) {
+  } catch {
     throw Error("🚨 The provided template must be a Remix project with a `package.json` " + `file, but that file does not exist in ${pkgJsonPath}.`);
   }
 
@@ -234,8 +244,8 @@ async function extractLocalTarball(projectDir, filePath) {
     await pipeline(fse__default["default"].createReadStream(filePath), gunzip__default["default"](), tar__default["default"].extract(projectDir, {
       strip: 1
     }));
-  } catch (err) {
-    throw Error("🚨 There was a problem extracting the file from the provided template.\n\n" + `  Template filepath: \`${filePath}\`\n` + `  Destination directory: \`${projectDir}\`\n` + `  ${err}`);
+  } catch (error) {
+    throw Error("🚨 There was a problem extracting the file from the provided template.\n\n" + `  Template filepath: \`${filePath}\`\n` + `  Destination directory: \`${projectDir}\`\n` + `  ${error}`);
   }
 }
 
@@ -278,13 +288,15 @@ async function downloadAndExtractTarball(projectDir, url, {
   }
 
   if (isGithubReleaseAssetUrl(url)) {
-    var _body$assets, _body$assets$find;
+    var _body$assets, _body$assets$find, _body$assets2, _body$assets2$find;
 
     // We can download the asset via the github api, but first we need to look up the
     // asset id
     let info = getGithubReleaseAssetInfo(url);
     headers.Accept = "application/vnd.github.v3+json";
-    let response = await fetch__default["default"](`https://api.github.com/repos/${info.owner}/${info.name}/releases/tags/${info.tag}`, {
+    let releaseUrl = info.tag === "latest" ? `https://api.github.com/repos/${info.owner}/${info.name}/releases/latest` : `https://api.github.com/repos/${info.owner}/${info.name}/releases/tags/${info.tag}`;
+    let response = await fetch__default["default"](releaseUrl, {
+      agent: agent("https://api.github.com"),
       headers
     });
 
@@ -292,8 +304,13 @@ async function downloadAndExtractTarball(projectDir, url, {
       throw Error("🚨 There was a problem fetching the file from GitHub. The request " + `responded with a ${response.status} status. Please try again later.`);
     }
 
-    let body = await response.json();
-    let assetId = body === null || body === void 0 ? void 0 : (_body$assets = body.assets) === null || _body$assets === void 0 ? void 0 : (_body$assets$find = _body$assets.find(a => (a === null || a === void 0 ? void 0 : a.browser_download_url) === url)) === null || _body$assets$find === void 0 ? void 0 : _body$assets$find.id;
+    let body = await response.json(); // If the release is "latest", the url won't match the download url, so we grab the id from the response
+
+    let assetId = info.tag === "latest" ? body === null || body === void 0 ? void 0 : (_body$assets = body.assets) === null || _body$assets === void 0 ? void 0 : (_body$assets$find = _body$assets.find(a => {
+      var _a$browser_download_u;
+
+      return a === null || a === void 0 ? void 0 : (_a$browser_download_u = a.browser_download_url) === null || _a$browser_download_u === void 0 ? void 0 : _a$browser_download_u.includes(info.asset);
+    })) === null || _body$assets$find === void 0 ? void 0 : _body$assets$find.id : body === null || body === void 0 ? void 0 : (_body$assets2 = body.assets) === null || _body$assets2 === void 0 ? void 0 : (_body$assets2$find = _body$assets2.find(a => (a === null || a === void 0 ? void 0 : a.browser_download_url) === url)) === null || _body$assets2$find === void 0 ? void 0 : _body$assets2$find.id;
 
     if (!assetId) {
       throw Error("🚨 There was a problem fetching the file from GitHub. No asset was " + "found at that url. Please try again later.");
@@ -304,6 +321,7 @@ async function downloadAndExtractTarball(projectDir, url, {
   }
 
   let response = await fetch__default["default"](resourceUrl, {
+    agent: agent(resourceUrl),
     headers
   });
 
@@ -377,13 +395,29 @@ function getGithubUrl(info) {
 }
 
 function isGithubReleaseAssetUrl(url) {
-  return url.startsWith("https://github.com") && url.includes("/releases/download/");
+  /**
+   * Accounts for the following formats:
+   * https://github.com/owner/repository/releases/download/v0.0.1/stack.tar.gz
+   * ~or~
+   * https://github.com/owner/repository/releases/latest/download/stack.tar.gz
+   */
+  return url.startsWith("https://github.com") && (url.includes("/releases/download/") || url.includes("/releases/latest/download/"));
 }
 
 function getGithubReleaseAssetInfo(browserUrl) {
-  // for example, https://github.com/owner/repository/releases/download/v0.0.1/stack.tar.gz
+  /**
+   * https://github.com/owner/repository/releases/download/v0.0.1/stack.tar.gz
+   * ~or~
+   * https://github.com/owner/repository/releases/latest/download/stack.tar.gz
+   */
   let url = new URL(browserUrl);
-  let [, owner, name,,, tag, asset] = url.pathname.split("/");
+  let [, owner, name,, downloadOrLatest, tag, asset] = url.pathname.split("/");
+
+  if (downloadOrLatest === "latest" && tag === "download") {
+    // handle the Github URL quirk for latest releases
+    tag = "latest";
+  }
+
   return {
     browserUrl,
     owner,
@@ -490,7 +524,7 @@ async function validateTemplate(input, options) {
 
         if (isGithubReleaseAssetUrl(input)) {
           let info = getGithubReleaseAssetInfo(input);
-          apiUrl = `https://api.github.com/repos/${info.owner}/${info.name}/releases/tags/${info.tag}`;
+          apiUrl = info.tag === "latest" ? `https://api.github.com/repos/${info.owner}/${info.name}/releases/latest` : `https://api.github.com/repos/${info.owner}/${info.name}/releases/tags/${info.tag}`;
           headers = {
             Authorization: `token ${options === null || options === void 0 ? void 0 : options.githubToken}`,
             Accept: "application/vnd.github.v3+json"
@@ -502,6 +536,7 @@ async function validateTemplate(input, options) {
 
         try {
           response = await fetch__default["default"](apiUrl, {
+            agent: agent(apiUrl),
             method,
             headers
           });
@@ -514,11 +549,14 @@ async function validateTemplate(input, options) {
         switch (response.status) {
           case 200:
             if (isGithubReleaseAssetUrl(input)) {
-              var _body$assets2;
+              var _body$assets3, _body$assets4;
 
+              let info = getGithubReleaseAssetInfo(input);
               let body = await response.json();
 
-              if (!(body !== null && body !== void 0 && (_body$assets2 = body.assets) !== null && _body$assets2 !== void 0 && _body$assets2.some(a => (a === null || a === void 0 ? void 0 : a.browser_download_url) === input))) {
+              if ( // if a tag is specified, make sure it exists.
+              !(body !== null && body !== void 0 && (_body$assets3 = body.assets) !== null && _body$assets3 !== void 0 && _body$assets3.some(a => (a === null || a === void 0 ? void 0 : a.browser_download_url) === input)) && // if the latest is specified, make sure there is an asset
+              !(body !== null && body !== void 0 && (_body$assets4 = body.assets) !== null && _body$assets4 !== void 0 && _body$assets4.some(a => a === null || a === void 0 ? void 0 : a.browser_download_url.includes(info.asset)))) {
                 throw Error("🚨 The template file could not be verified. Please double check " + "the URL and try again.");
               }
             }
@@ -567,6 +605,7 @@ async function validateTemplate(input, options) {
           }
 
           response = await fetch__default["default"](apiUrl, {
+            agent: agent(apiUrl),
             method,
             headers
           });
@@ -610,18 +649,20 @@ async function validateTemplate(input, options) {
     case "template":
       {
         let spinner = ora__default["default"]("Validating the template…").start();
+        let isExample = templateType === "example";
         let name = input;
 
-        if (templateType === "example") {
+        if (isExample) {
           name = name.split("/")[1];
         }
 
-        let typeDir = templateType + "s";
-        let templateUrl = `https://github.com/remix-run/remix/tree/main/${typeDir}/${name}`;
+        let repoBaseUrl = isExample ? "https://github.com/remix-run/examples/tree/main" : "https://github.com/remix-run/remix/tree/main/templates";
+        let templateUrl = `${repoBaseUrl}/${name}`;
         let response;
 
         try {
           response = await fetch__default["default"](templateUrl, {
+            agent: agent(templateUrl),
             method: "HEAD"
           });
         } catch (_) {
@@ -635,10 +676,10 @@ async function validateTemplate(input, options) {
             return;
 
           case 404:
-            throw Error("🚨 The template could not be verified. Please double check that " + "the template is a valid project directory in " + `https://github.com/remix-run/remix/tree/main/${typeDir} and ` + "try again.");
+            throw Error("🚨 The template could not be verified. Please double check that " + "the template is a valid project directory in " + `${repoBaseUrl} and ` + "try again.");
 
           default:
-            throw Error("🚨 The template could not be verified. The server returned a " + `response with a ${response.status} status. Please double ` + "check that the template is a valid project directory in " + `https://github.com/remix-run/remix/tree/main/${typeDir} and ` + "try again.");
+            throw Error("🚨 The template could not be verified. The server returned a " + `response with a ${response.status} status. Please double ` + "check that the template is a valid project directory in " + `${repoBaseUrl} and ` + "try again.");
         }
       }
   }
@@ -674,7 +715,7 @@ function detectTemplateType(template) {
       return "local";
     }
   } catch (_) {// ignore FS errors and move on
-  } // 4. examples/<template> will use an example folder in the Remix repo
+  } // 4. examples/<template> will use a folder in the Examples repo
 
 
   if (/^examples?\/[\w-]+$/.test(template)) {

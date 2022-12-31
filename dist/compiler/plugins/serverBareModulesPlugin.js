@@ -1,5 +1,5 @@
 /**
- * @remix-run/dev v1.7.2
+ * @remix-run/dev v1.9.0
  *
  * Copyright (c) Remix Software Inc.
  *
@@ -17,6 +17,7 @@ var fs = require('fs');
 var module$1 = require('module');
 var virtualModules = require('../virtualModules.js');
 var index = require('../utils/tsconfig/index.js');
+var getPreferredPackageManager = require('../../cli/getPreferredPackageManager.js');
 
 function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e : { 'default': e }; }
 
@@ -75,9 +76,13 @@ function serverBareModulesPlugin(remixConfig, onWarning) {
           return undefined;
         }
 
-        let packageName = getNpmPackageName(path$1); // Warn if we can't find an import for a package.
+        let packageName = getNpmPackageName(path$1);
+        let pkgManager = getPreferredPackageManager.getPreferredPackageManager(); // Warn if we can't find an import for a package.
 
-        if (onWarning && !isNodeBuiltIn(packageName) && !/\bnode_modules\b/.test(importer)) {
+        if (onWarning && !isNodeBuiltIn(packageName) && !/\bnode_modules\b/.test(importer) && ( // Silence spurious warnings when using Yarn PnP. Yarn PnP doesn’t use
+        // a `node_modules` folder to keep its dependencies, so the above check
+        // will always fail.
+        pkgManager === "npm" || pkgManager === "yarn" && process.versions.pnp == null)) {
           try {
             require.resolve(path$1);
           } catch (error) {

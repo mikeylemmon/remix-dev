@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * @remix-run/dev v1.7.2
+ * @remix-run/dev v1.9.0
  *
  * Copyright (c) Remix Software Inc.
  *
@@ -18,6 +18,7 @@ throw new Error("@remix-run/dev/server-build is not meant to be used directly fr
 const assets = undefined;
 const entry = undefined;
 const routes = undefined;
+const future = undefined;
 const publicPath = undefined; // prettier-ignore
 
 const assetsBuildDirectory = undefined;
@@ -25,5 +26,6 @@ const assetsBuildDirectory = undefined;
 exports.assets = assets;
 exports.assetsBuildDirectory = assetsBuildDirectory;
 exports.entry = entry;
+exports.future = future;
 exports.publicPath = publicPath;
 exports.routes = routes;

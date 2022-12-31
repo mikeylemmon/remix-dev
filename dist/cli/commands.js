@@ -1,5 +1,5 @@
 /**
- * @remix-run/dev v1.7.2
+ * @remix-run/dev v1.9.0
  *
  * Copyright (c) Remix Software Inc.
  *
@@ -13,28 +13,37 @@
 Object.defineProperty(exports, '__esModule', { value: true });
 
 var path = require('path');
-var os = require('os');
 var child_process = require('child_process');
 var fse = require('fs-extra');
-var exitHook = require('exit-hook');
 var ora = require('ora');
 var prettyMs = require('pretty-ms');
-var WebSocket = require('ws');
-var getPort = require('get-port');
 var esbuild = require('esbuild');
-var build$1 = require('../build.js');
 var colors = require('../colors.js');
-var compiler = require('../compiler.js');
+var build$1 = require('../compiler/build.js');
+require('chokidar');
+require('lodash.debounce');
 var config = require('../config.js');
+var onCompileFailure = require('../compiler/onCompileFailure.js');
+require('module');
+require('@esbuild-plugins/node-modules-polyfill');
+require('esbuild-plugin-alias');
+require('cacache');
+require('fs');
+require('remark-mdx-frontmatter');
+require('tsconfig-paths');
+require('crypto');
+require('jsesc');
+var getPreferredPackageManager = require('./getPreferredPackageManager.js');
+var options = require('../compiler/options.js');
+var liveReload = require('../devServer/liveReload.js');
+var serve = require('../devServer/serve.js');
 var format = require('../config/format.js');
-var env = require('../env.js');
 var logging = require('../logging.js');
 var create$1 = require('./create.js');
-var getPreferredPackageManager = require('./getPreferredPackageManager.js');
 var setup$1 = require('./setup.js');
-require('inquirer');
-require('./migrate/migrations/convert-to-javascript/index.js');
-require('./migrate/migrations/replace-remix-imports/index.js');
+var index = require('../codemod/index.js');
+var error = require('../codemod/utils/error.js');
+var task = require('../codemod/utils/task.js');
 
 function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e : { 'default': e }; }
 
@@ -57,13 +66,9 @@ function _interopNamespace(e) {
 }
 
 var path__namespace = /*#__PURE__*/_interopNamespace(path);
-var os__default = /*#__PURE__*/_interopDefaultLegacy(os);
 var fse__namespace = /*#__PURE__*/_interopNamespace(fse);
-var exitHook__default = /*#__PURE__*/_interopDefaultLegacy(exitHook);
 var ora__default = /*#__PURE__*/_interopDefaultLegacy(ora);
 var prettyMs__default = /*#__PURE__*/_interopDefaultLegacy(prettyMs);
-var WebSocket__default = /*#__PURE__*/_interopDefaultLegacy(WebSocket);
-var getPort__default = /*#__PURE__*/_interopDefaultLegacy(getPort);
 var esbuild__namespace = /*#__PURE__*/_interopNamespace(esbuild);
 
 async function create({
@@ -163,10 +168,10 @@ async function routes(remixRoot, formatArg) {
   console.log(format.formatRoutes(config$1.routes, format$1));
 }
 async function build(remixRoot, modeArg, sourcemap = false) {
-  let mode = build$1.isBuildMode(modeArg) ? modeArg : build$1.BuildMode.Production;
+  let mode = options.parseMode(modeArg ?? "", "production");
   logging.log(`Building Remix app in ${mode} mode...`);
 
-  if (modeArg === build$1.BuildMode.Production && sourcemap) {
+  if (modeArg === "production" && sourcemap) {
     console.warn("\n⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️");
     console.warn("You have enabled source maps in production. This will make your " + "server-side code visible to the public and is highly discouraged! If " + "you insist, please ensure you are using environment variables for " + "secrets and not hard-coding them into your source!");
     console.warn("⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️\n");
@@ -175,160 +180,62 @@ async function build(remixRoot, modeArg, sourcemap = false) {
   let start = Date.now();
   let config$1 = await config.readConfig(remixRoot);
   fse__namespace.emptyDirSync(config$1.assetsBuildDirectory);
-  await compiler.build(config$1, {
-    mode: mode,
+  await build$1.build(config$1, {
+    mode,
     sourcemap,
-    onBuildFailure: failure => {
-      compiler.formatBuildFailure(failure);
+    onCompileFailure: failure => {
+      onCompileFailure.logCompileFailure(failure);
       throw Error();
     }
   });
   logging.log(`Built in ${prettyMs__default["default"](Date.now() - start)}`);
 }
-async function watch(remixRootOrConfig, modeArg, callbacks) {
-  let {
-    onInitialBuild,
-    onRebuildStart
-  } = callbacks || {};
-  let mode = build$1.isBuildMode(modeArg) ? modeArg : build$1.BuildMode.Development;
+async function watch(remixRootOrConfig, modeArg) {
+  let mode = options.parseMode(modeArg ?? "", "development");
   console.log(`Watching Remix app in ${mode} mode...`);
-  let start = Date.now();
   let config$1 = typeof remixRootOrConfig === "object" ? remixRootOrConfig : await config.readConfig(remixRootOrConfig);
-  let wss = new WebSocket__default["default"].Server({
-    port: config$1.devServerPort
-  });
-
-  function broadcast(event) {
-    setTimeout(() => {
-      wss.clients.forEach(client => {
-        if (client.readyState === WebSocket__default["default"].OPEN) {
-          client.send(JSON.stringify(event));
-        }
-      });
-    }, config$1.devServerBroadcastDelay);
-  }
-
-  function log(_message) {
-    let message = `💿 ${_message}`;
-    console.log(message);
-    broadcast({
-      type: "LOG",
-      message
-    });
-  }
-
-  let closeWatcher = await compiler.watch(config$1, {
+  return liveReload.liveReload(config$1, {
     mode,
-    onInitialBuild,
-
-    onRebuildStart() {
-      start = Date.now();
-      onRebuildStart === null || onRebuildStart === void 0 ? void 0 : onRebuildStart();
-      log("Rebuilding...");
-    },
-
-    onRebuildFinish() {
-      log(`Rebuilt in ${prettyMs__default["default"](Date.now() - start)}`);
-      broadcast({
-        type: "RELOAD"
-      });
-    },
-
-    onFileCreated(file) {
-      log(`File created: ${path__namespace.relative(process.cwd(), file)}`);
-    },
-
-    onFileChanged(file) {
-      log(`File changed: ${path__namespace.relative(process.cwd(), file)}`);
-    },
-
-    onFileDeleted(file) {
-      log(`File deleted: ${path__namespace.relative(process.cwd(), file)}`);
-    }
-
-  });
-  console.log(`💿 Built in ${prettyMs__default["default"](Date.now() - start)}`);
-  let resolve;
-  exitHook__default["default"](() => {
-    resolve();
-  });
-  return new Promise(r => {
-    resolve = r;
-  }).then(async () => {
-    wss.close();
-    await closeWatcher();
-    fse__namespace.emptyDirSync(config$1.assetsBuildDirectory);
-    fse__namespace.rmSync(config$1.serverBuildPath);
+    onInitialBuild: durationMs => console.log(`💿 Built in ${prettyMs__default["default"](durationMs)}`)
   });
 }
-async function dev(remixRoot, modeArg, portArg) {
-  let createApp;
-  let express;
-
-  try {
-    // eslint-disable-next-line import/no-extraneous-dependencies
-    let serve = require("@remix-run/serve");
-
-    createApp = serve.createApp;
-    express = require("express");
-  } catch (err) {
-    throw new Error("Could not locate @remix-run/serve. Please verify you have it installed " + "to use the dev command.");
-  }
-
+async function dev(remixRoot, modeArg, port) {
   let config$1 = await config.readConfig(remixRoot);
-  let mode = build$1.isBuildMode(modeArg) ? modeArg : build$1.BuildMode.Development;
-  await env.loadEnv(config$1.rootDirectory);
-  let port = await getPort__default["default"]({
-    port: portArg ? Number(portArg) : process.env.PORT ? Number(process.env.PORT) : getPort.makeRange(3000, 3100)
-  });
-
-  if (config$1.serverEntryPoint) {
-    throw new Error("remix dev is not supported for custom servers.");
+  let mode = options.parseMode(modeArg ?? "", "development");
+  return serve.serve(config$1, mode, port);
+}
+async function codemod(codemodName, projectDir, {
+  dry = false,
+  force = false
+} = {}) {
+  if (!codemodName) {
+    console.error(colors.red("Error: Missing codemod name"));
+    console.log("Usage: " + colors.gray(`remix codemod <${colors.arg("codemod")}> [${colors.arg("projectDir")}]`));
+    process.exit(1);
   }
-
-  let app = express();
-  app.disable("x-powered-by");
-  app.use((_, __, next) => {
-    purgeAppRequireCache(config$1.serverBuildPath);
-    next();
-  });
-  app.use(createApp(config$1.serverBuildPath, mode, config$1.publicPath, config$1.assetsBuildDirectory));
-  let server = null;
 
   try {
-    await watch(config$1, mode, {
-      onInitialBuild: () => {
-        let onListen = () => {
-          var _Object$values$flat$f;
-
-          let address = process.env.HOST || ((_Object$values$flat$f = Object.values(os__default["default"].networkInterfaces()).flat().find(ip => String(ip === null || ip === void 0 ? void 0 : ip.family).includes("4") && !(ip !== null && ip !== void 0 && ip.internal))) === null || _Object$values$flat$f === void 0 ? void 0 : _Object$values$flat$f.address);
-
-          if (!address) {
-            console.log(`Remix App Server started at http://localhost:${port}`);
-          } else {
-            console.log(`Remix App Server started at http://localhost:${port} (http://${address}:${port})`);
-          }
-        };
-
-        server = process.env.HOST ? app.listen(port, process.env.HOST, onListen) : app.listen(port, onListen);
-      }
+    await index["default"](projectDir ?? process.cwd(), codemodName, {
+      dry,
+      force
     });
-  } finally {
-    var _server;
-
-    (_server = server) === null || _server === void 0 ? void 0 : _server.close();
-  }
-}
-
-function purgeAppRequireCache(buildPath) {
-  for (let key in require.cache) {
-    if (key.startsWith(buildPath)) {
-      delete require.cache[key];
+  } catch (error$1) {
+    if (error$1 instanceof error.CodemodError) {
+      console.error(`${colors.red("Error:")} ${error$1.message}`);
+      if (error$1.additionalInfo) console.info(colors.gray(error$1.additionalInfo));
+      process.exit(1);
     }
+
+    if (error$1 instanceof task.TaskError) {
+      process.exit(1);
+    }
+
+    throw error$1;
   }
 }
 
 exports.build = build;
+exports.codemod = codemod;
 exports.create = create;
 exports.dev = dev;
 exports.init = init;

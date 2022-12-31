@@ -1,5 +1,5 @@
 /**
- * @remix-run/dev v1.7.2
+ * @remix-run/dev v1.9.0
  *
  * Copyright (c) Remix Software Inc.
  *
@@ -74,10 +74,11 @@ function defineConventionalRoutes(appDir, ignoredFilePatterns) {
     throw new Error(`Invalid route module file: ${path__namespace.join(appDir, "routes", file)}`);
   });
   let routeIds = Object.keys(files).sort(byLongestFirst);
+  let parentRouteIds = getParentRouteIds(routeIds);
   let uniqueRoutes = new Map(); // Then, recurse through all routes using the public defineRoutes() API
 
   function defineNestedRoutes(defineRoute, parentId) {
-    let childRouteIds = routeIds.filter(id => findParentRouteId(routeIds, id) === parentId);
+    let childRouteIds = routeIds.filter(id => parentRouteIds[id] === parentId);
 
     for (let routeId of childRouteIds) {
       let routePath = createRoutePath(routeId.slice((parentId || "routes").length + 1));
@@ -94,7 +95,7 @@ function defineConventionalRoutes(appDir, ignoredFilePatterns) {
       }
 
       if (isIndexRoute) {
-        let invalidChildRoutes = routeIds.filter(id => findParentRouteId(routeIds, id) === routeId);
+        let invalidChildRoutes = routeIds.filter(id => parentRouteIds[id] === routeId);
 
         if (invalidChildRoutes.length > 0) {
           throw new Error(`Child routes are not allowed in index routes. Please remove child routes of ${routeId}`);
@@ -114,12 +115,16 @@ function defineConventionalRoutes(appDir, ignoredFilePatterns) {
   return routes.defineRoutes(defineNestedRoutes);
 }
 let escapeStart = "[";
-let escapeEnd = "]"; // TODO: Cleanup and write some tests for this function
+let escapeEnd = "]";
+let optionalStart = "(";
+let optionalEnd = ")"; // TODO: Cleanup and write some tests for this function
 
 function createRoutePath(partialRouteId) {
   let result = "";
   let rawSegmentBuffer = "";
   let inEscapeSequence = 0;
+  let inOptionalSegment = 0;
+  let optionalSegmentIndex = null;
   let skipSegment = false;
 
   for (let i = 0; i < partialRouteId.length; i++) {
@@ -139,8 +144,20 @@ function createRoutePath(partialRouteId) {
       return char === "_" && nextChar === "_" && !rawSegmentBuffer;
     }
 
+    function isSegmentSeparator(checkChar = char) {
+      return checkChar === "/" || checkChar === "." || checkChar === path__namespace.win32.sep;
+    }
+
+    function isNewOptionalSegment() {
+      return char === optionalStart && lastChar !== optionalStart && (isSegmentSeparator(lastChar) || lastChar === undefined) && !inOptionalSegment && !inEscapeSequence;
+    }
+
+    function isCloseOptionalSegment() {
+      return char === optionalEnd && nextChar !== optionalEnd && (isSegmentSeparator(nextChar) || nextChar === undefined) && inOptionalSegment && !inEscapeSequence;
+    }
+
     if (skipSegment) {
-      if (char === "/" || char === "." || char === path__namespace.win32.sep) {
+      if (isSegmentSeparator()) {
         skipSegment = false;
       }
 
@@ -157,12 +174,30 @@ function createRoutePath(partialRouteId) {
       continue;
     }
 
+    if (isNewOptionalSegment()) {
+      inOptionalSegment++;
+      optionalSegmentIndex = result.length;
+      result += "(";
+      continue;
+    }
+
+    if (isCloseOptionalSegment()) {
+      if (optionalSegmentIndex !== null) {
+        result = result.slice(0, optionalSegmentIndex) + result.slice(optionalSegmentIndex + 1);
+      }
+
+      optionalSegmentIndex = null;
+      inOptionalSegment--;
+      result += "?";
+      continue;
+    }
+
     if (inEscapeSequence) {
       result += char;
       continue;
     }
 
-    if (char === "/" || char === path__namespace.win32.sep || char === ".") {
+    if (isSegmentSeparator()) {
       if (rawSegmentBuffer === "index" && result.endsWith("index")) {
         result = result.replace(/\/?index$/, "");
       } else {
@@ -170,6 +205,8 @@ function createRoutePath(partialRouteId) {
       }
 
       rawSegmentBuffer = "";
+      inOptionalSegment = 0;
+      optionalSegmentIndex = null;
       continue;
     }
 
@@ -181,6 +218,10 @@ function createRoutePath(partialRouteId) {
     rawSegmentBuffer += char;
 
     if (char === "$") {
+      if (nextChar === ")") {
+        throw new Error(`Invalid route path: ${partialRouteId}. Splat route $ is already optional`);
+      }
+
       result += typeof nextChar === "undefined" ? "*" : ":";
       continue;
     }
@@ -192,11 +233,17 @@ function createRoutePath(partialRouteId) {
     result = result.replace(/\/?index$/, "");
   }
 
+  if (rawSegmentBuffer === "index" && result.endsWith("index?")) {
+    throw new Error(`Invalid route path: ${partialRouteId}. Make index route optional by using [index]`);
+  }
+
   return result || undefined;
 }
 
-function findParentRouteId(routeIds, childRouteId) {
-  return routeIds.find(id => childRouteId.startsWith(`${id}/`));
+function getParentRouteIds(routeIds) {
+  return routeIds.reduce((parentRouteIds, childRouteId) => ({ ...parentRouteIds,
+    [childRouteId]: routeIds.find(id => childRouteId.startsWith(`${id}/`))
+  }), {});
 }
 
 function byLongestFirst(a, b) {

@@ -1,5 +1,5 @@
 /**
- * @remix-run/dev v1.7.2
+ * @remix-run/dev v1.9.0
  *
  * Copyright (c) Remix Software Inc.
  *
@@ -14,7 +14,7 @@ Object.defineProperty(exports, '__esModule', { value: true });
 
 var path = require('path');
 var invariant = require('../invariant.js');
-var routes = require('./routes.js');
+var routeExports = require('./routeExports.js');
 var crypto = require('./utils/crypto.js');
 var url = require('./utils/url.js');
 
@@ -50,54 +50,55 @@ async function createAssetsManifest(config, metafile) {
   let entryClientFile = path__namespace.resolve(config.appDirectory, config.entryClientFile);
   let routesByFile = Object.keys(config.routes).reduce((map, key) => {
     let route = config.routes[key];
-    map.set(route.file, route);
+    map.set(route.file, map.has(route.file) ? [...map.get(route.file), route] : [route]);
     return map;
   }, new Map());
   let entry;
-  let routes$1 = {};
+  let routes = {};
 
   for (let key of Object.keys(metafile.outputs).sort()) {
     let output = metafile.outputs[key];
-    if (!output.entryPoint) continue; // When using yarn-pnp, esbuild-plugin-pnp resolves files under the pnp namespace, even entry.client.tsx
+    if (!output.entryPoint) continue;
 
-    let entryPointFile = output.entryPoint.replace(/^pnp:/, "");
-
-    if (path__namespace.resolve(entryPointFile) === entryClientFile) {
+    if (path__namespace.resolve(output.entryPoint) === entryClientFile) {
       entry = {
         module: resolveUrl(key),
         imports: resolveImports(output.imports)
       }; // Only parse routes otherwise dynamic imports can fall into here and fail the build
-    } else if (entryPointFile.startsWith("browser-route-module:")) {
-      entryPointFile = entryPointFile.replace(/(^browser-route-module:|\?browser$)/g, "");
-      let route = routesByFile.get(entryPointFile);
-      invariant["default"](route, `Cannot get route for entry point ${output.entryPoint}`);
-      let sourceExports = await routes.getRouteModuleExportsCached(config, route.id);
-      routes$1[route.id] = {
-        id: route.id,
-        parentId: route.parentId,
-        path: route.path,
-        index: route.index,
-        caseSensitive: route.caseSensitive,
-        module: resolveUrl(key),
-        imports: resolveImports(output.imports),
-        hasAction: sourceExports.includes("action"),
-        hasLoader: sourceExports.includes("loader"),
-        hasCatchBoundary: sourceExports.includes("CatchBoundary"),
-        hasErrorBoundary: sourceExports.includes("ErrorBoundary")
-      };
+    } else if (output.entryPoint.startsWith("browser-route-module:")) {
+      let entryPointFile = output.entryPoint.replace(/(^browser-route-module:|\?browser$)/g, "");
+      let groupedRoute = routesByFile.get(entryPointFile);
+      invariant["default"](groupedRoute, `Cannot get route(s) for entry point ${output.entryPoint}`);
+
+      for (let route of groupedRoute) {
+        let sourceExports = await routeExports.getRouteModuleExports(config, route.id);
+        routes[route.id] = {
+          id: route.id,
+          parentId: route.parentId,
+          path: route.path,
+          index: route.index,
+          caseSensitive: route.caseSensitive,
+          module: resolveUrl(key),
+          imports: resolveImports(output.imports),
+          hasAction: sourceExports.includes("action"),
+          hasLoader: sourceExports.includes("loader"),
+          hasCatchBoundary: sourceExports.includes("CatchBoundary"),
+          hasErrorBoundary: sourceExports.includes("ErrorBoundary")
+        };
+      }
     }
   }
 
   invariant["default"](entry, `Missing output for entry point`);
-  optimizeRoutes(routes$1, entry.imports);
+  optimizeRoutes(routes, entry.imports);
   let version = crypto.getHash(JSON.stringify({
     entry,
-    routes: routes$1
+    routes
   })).slice(0, 8);
   return {
     version,
     entry,
-    routes: routes$1
+    routes
   };
 }
 

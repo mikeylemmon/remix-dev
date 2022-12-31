@@ -1,5 +1,5 @@
 /**
- * @remix-run/dev v1.7.2
+ * @remix-run/dev v1.9.0
  *
  * Copyright (c) Remix Software Inc.
  *
@@ -63,6 +63,7 @@ const loaders = {
   ".ts": "ts",
   ".tsx": "tsx",
   ".ttf": "file",
+  ".wasm": "file",
   ".wav": "file",
   ".webm": "file",
   ".webmanifest": "file",

@@ -1,5 +1,5 @@
 /**
- * @remix-run/dev v1.7.2
+ * @remix-run/dev v1.9.0
  *
  * Copyright (c) Remix Software Inc.
  *
@@ -41,7 +41,7 @@ async function loadEnv(rootDirectory) {
 
   try {
     await fse__namespace.readFile(envPath);
-  } catch (e) {
+  } catch {
     return;
   }
 
